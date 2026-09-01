@@ -4,6 +4,8 @@ import {
   INodeExecutionData,
   INodeType,
   INodeTypeDescription,
+  NodeApiError,
+  NodeConnectionTypes,
   NodeOperationError,
 } from 'n8n-workflow';
 import { EasyNodeOperationType, EasyNodeResourceType } from './Model';
@@ -38,11 +40,12 @@ export class Easy8 implements INodeType {
     group: ['transform'],
     version: 1,
     description: 'Easy8 Operations',
+    usableAsTool: true,
     defaults: {
       name: 'Easy8 Node',
     },
-    inputs: ['main'],
-    outputs: ['main'],
+    inputs: [NodeConnectionTypes.Main],
+    outputs: [NodeConnectionTypes.Main],
     credentials: [
       {
         name: 'easy8Api',
@@ -289,16 +292,15 @@ export class Easy8 implements INodeType {
           );
           returnData.push(...executionErrorData);
         } else {
+          // Keep the original error when it is already an n8n node error (it carries
+          // the API context), otherwise wrap the raw error.
+          const nodeError =
+            error instanceof NodeApiError || error instanceof NodeOperationError
+              ? error
+              : new NodeOperationError(this.getNode(), error, { itemIndex });
           // Adding `itemIndex` allows other workflows to handle this error
-          if (error.context) {
-            // If the error thrown already contains the context property,
-            // only append the itemIndex
-            error.context.itemIndex = itemIndex;
-            throw error;
-          }
-          throw new NodeOperationError(this.getNode(), error, {
-            itemIndex,
-          });
+          nodeError.context.itemIndex = itemIndex;
+          throw nodeError;
         }
       }
     }
